@@ -30,19 +30,8 @@ source("/inkwell05/ameer/functions/0_source_functions.R")
 ```{r}
 
 # speed and RAM benchmarking
-benchmark = as.data.frame(fread("/inkwell05/ameer/cross_expression_brain_meta_analysis/plot_datasets/RUN1_speed_memory_benchmark.csv"))
-benchmark = benchmark[!benchmark$genes < 1000,]
+benchmark = as.data.frame(fread("/inkwell05/ameer/cross_expression_brain_meta_analysis/plot_datasets/speed_memory_benchmark.csv"))
 benchmark = benchmark[!(benchmark$ram_MB == -1 | benchmark$time_sec == -1),]
-
-# time (change seconds to minutes)
-ggplot(benchmark) + aes(x = cells, y = time_sec/60, color = factor(genes)) + geom_point() + geom_line() + theme_classic() +
-  labs(x = "Number of cells", y = "Time (minutes)", color = "Gene panel\nsize") +
-  scale_x_continuous(breaks = benchmark$cells, labels = label_number(scale = 1e-3, suffix = "k"), transform = "log10")
-
-# RAM (change MB to GB)
-ggplot(benchmark) + aes(x = cells, y = ram_MB/1024, color = factor(genes)) + geom_point() + geom_line() + theme_classic() +
-  labs(x = "Number of cells", y = "Memory (GB)", color = "Gene panel\nsize") +
-  scale_x_continuous(breaks = benchmark$cells, labels = label_number(scale = 1e-3, suffix = "k"), transform = "log10")
 
 # plot together
 result = benchmark
@@ -51,10 +40,23 @@ result$time_sec = result$time_sec/60
 colnames(result)[3:4] = c("Memory","Time")
 result = pivot_longer(data = result, cols = 3:4, names_to = "type", values_to = "vals") |> as.data.frame()
 
-ggplot(result) + aes(x = cells, y = vals, color = factor(genes), linetype = type) + geom_point() + geom_line() + theme_classic() +
+# time
+X = result[result$type == "Time",]
+ggplot(X) + aes(x = cells, y = vals, color = factor(genes)) + geom_point() + geom_line() + theme_classic() +
   scale_x_continuous(breaks = benchmark$cells, labels = label_number(scale = 1e-3, suffix = "k"), transform = "log10") +
-  labs(x = "Number of cells", y = "Memory (GB) and Time (minutes)", color = "Gene panel\nsize", linetype = "") +
-  guides(color = guide_legend(order = 1), linetype = guide_legend(order = 2))
+  labs(x = "Number of cells", y = "Time (minutes)", color = "Gene panel", linetype = "") +
+  guides(color = guide_legend(order = 1), linetype = guide_legend(order = 2)) +
+  theme(axis.text = element_text(size = 8), axis.title = element_text(size = 15), legend.text = element_text(size = 12),
+        plot.subtitle = element_text(size = 15), legend.title = element_text(size = 15))
+
+# memory
+X = result[result$type == "Memory",]
+ggplot(X) + aes(x = cells, y = vals, color = factor(genes)) + geom_point() + geom_line() + theme_classic() +
+  scale_x_continuous(breaks = benchmark$cells, labels = label_number(scale = 1e-3, suffix = "k"), transform = "log10") +
+  labs(x = "Number of cells", y = "Peak memory usage (GB)", color = "Gene panel", linetype = "") +
+  guides(color = guide_legend(order = 1), linetype = guide_legend(order = 2)) +
+  theme(axis.text = element_text(size = 8), axis.title = element_text(size = 15), legend.text = element_text(size = 12),
+        plot.subtitle = element_text(size = 15), legend.title = element_text(size = 15))
 
 ```
 
@@ -63,6 +65,10 @@ ggplot(result) + aes(x = cells, y = vals, color = factor(genes), linetype = type
 
 # total number of cells and genes in each dataset
 data = as.data.frame(fread("/inkwell05/ameer/cross_expression_brain_meta_analysis/plot_datasets/datasets_total_cells_genes.csv"))
+
+# change names
+#data$data[data$data == "Zhuang_2023_MERFISH"] = "Zhuang_2023a_MERFISH"
+#data$data[data$data == "Zhuang_2024_MERFISH"] = "Zhuang_2023b_MERFISH"
 
 # cells vs datasets
 ggplot(data, aes(x = reorder(data, cells), y = cells)) +
@@ -101,6 +107,10 @@ source_data[output$data %in% "Zeng_2023_MERSCOPE"] = "Zeng_2023_MERSCOPE"
 source_data[output$data %in% "Zeng_2023_MERSCOPE"] = "Zeng_2023_MERSCOPE"
 source_data[str_detect(output$data, "Zhuang_2023_MERFISH")] = "Zhuang_2023_MERFISH"
 output = data.frame(source_data, output)
+
+# change names
+output$source_data = "Zhuang_2023a_MERFISH"
+output$data = str_replace_all(output$data, "Zhuang_2023", "Zhuang_2023a")
 
 # make plot
 ggplot(output) + aes(x = slices_included, y = auroc, color = data) + geom_point() +
@@ -299,6 +309,9 @@ ggplot(panel_size, aes(x = size, y = data)) +
         axis.title.x = element_text(size = 15))
 
 # upset plots with (non-unique) intersections
+colnames(hits_background)[colnames(hits_background) == "Zhuang_2023_MERFISH"] = "Zhuang_2023a_MERFISH"
+colnames(hits_background)[colnames(hits_background) == "Zhuang_2024_MERFISH"] = "Zhuang_2023b_MERFISH"
+
 comb_mat = make_comb_mat(hits_background, mode = "intersect")
 comb_mat = comb_mat[, str_count(comb_name(comb_mat), "1") != 1 & str_detect(comb_name(comb_mat), "^[01]+$")] # remove self-intersections
 
@@ -337,7 +350,6 @@ print(str_c("Medium number of intersecting genes between a pair of datasets = ",
 
 # replicability (correlation used to predict significant genes -- AUROC) within and between datasets
 output = as.data.frame(fread("/inkwell05/ameer/cross_expression_brain_meta_analysis/plot_datasets/datasets_cross_expression_replicability_across_samples_and_datasets.csv"))
-#output = as.data.frame(fread("/inkwell05/ameer/cross_expression_brain_meta_analysis/plot_datasets/ORIGINAL_datasets_cross_expression_replicability_across_samples_and_datasets.csv"))
 
 result_corr = matrix(data = 0, nrow = length(unique(output$data1)), ncol = length(unique(output$data2)),
                      dimnames = list(str_remove(unique(output$data1), "Mouse_"), str_remove(unique(output$data1), "Mouse_")))
@@ -345,14 +357,25 @@ result_corr = matrix(data = 0, nrow = length(unique(output$data1)), ncol = lengt
 for (i in 1:nrow(result_corr)){
   for (j in 1:ncol(result_corr)){
     x = output[(output$data1 %in% unique(output$data1)[i]) & (output$data2 %in% unique(output$data2)[j]),]
-    result_corr[i,j] = median(x$auroc_corr, na.rm = TRUE)
+    x = x$auroc_corr
+    x = x[!is.na(x)]
+    result_corr[i,j] = median(x)
   }
 }
 
+# change names
+rownames(result_corr)[rownames(result_corr) == "Zhuang_2023_MERFISH"] = "Zhuang_2023a_MERFISH"
+colnames(result_corr) = rownames(result_corr)
+
+rownames(result_corr)[rownames(result_corr) == "Zhuang_2024_MERFISH"] = "Zhuang_2023b_MERFISH"
+colnames(result_corr) = rownames(result_corr)
+
 # heatmap with max. AUROC
-output = Pmax(result_corr, t(result_corr))
-dimnames(output) = dimnames(result_corr)
-output[lower.tri(output)] = NA
+output = result_corr
+#output = (t(output) + output)/2
+#output[lower.tri(output)] = NA
+#output[is.nan(output)] = NA
+#dimnames(output) = dimnames(result_corr)
 
 # plot heatmap
 pheatmap(output, cluster_rows = FALSE, cluster_cols = FALSE, display_numbers = TRUE, number_color = "blue", color = colorRampPalette(c("yellow", "red"))(50), legend = FALSE,
